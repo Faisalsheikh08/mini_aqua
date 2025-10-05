@@ -1,4 +1,431 @@
-// import { useState } from "react";
+// // import { useState } from "react";
+// // import { Button } from "@/components/ui/button";
+// // import { Card, CardContent, CardHeader } from "@/components/ui/card";
+// // import { Badge } from "@/components/ui/badge";
+// // import { Input } from "@/components/ui/input";
+// // import { Label } from "@/components/ui/label";
+// // import { Checkbox } from "@/components/ui/checkbox";
+// // import {
+// //   Dialog,
+// //   DialogContent,
+// //   DialogDescription,
+// //   DialogFooter,
+// //   DialogHeader,
+// //   DialogTitle,
+// // } from "@/components/ui/dialog";
+// // import { Download, Trash2, FileText, X } from "lucide-react";
+// // import { useExport } from "@/contexts/ExportContext";
+// // import { useToast } from "@/hooks/use-toast";
+// // import type { Question } from "@shared/schema";
+// // import DOMPurify from "dompurify";
+
+// // export default function ExportPage() {
+// //   const { selectedQuestions, removeQuestion, clearSelection } = useExport();
+// //   const { toast } = useToast();
+// //   const [isExporting, setIsExporting] = useState(false);
+// //   const [showExportDialog, setShowExportDialog] = useState(false);
+// //   const [documentHeading, setDocumentHeading] = useState("");
+// //   const [fileName, setFileName] = useState("");
+// //   const [useSameAsFileName, setUseSameAsFileName] = useState(true);
+
+// //   // Function to strip HTML tags and keep plain text with line breaks
+// //   const stripHtmlTags = (html: string): string => {
+// //     if (!html) return "";
+
+// //     // Replace <br> and </p> with newlines to preserve formatting
+// //     let text = html.replace(/<br\s*\/?>/gi, "\n");
+// //     text = text.replace(/<\/p>/gi, "\n\n");
+// //     text = text.replace(/<p>/gi, "");
+
+// //     // Remove all other HTML tags
+// //     text = text.replace(/<[^>]*>/g, "");
+
+// //     // Decode HTML entities
+// //     const textarea = document.createElement("textarea");
+// //     textarea.innerHTML = text;
+// //     text = textarea.value;
+
+// //     // Clean up excessive whitespace while preserving intentional line breaks
+// //     text = text.replace(/[ \t]+/g, " "); // Multiple spaces to single space
+// //     text = text.replace(/\n\s*\n\s*\n/g, "\n\n"); // Max 2 consecutive newlines
+// //     text = text.trim();
+
+// //     return text;
+// //   };
+
+// //   // Clean question data before sending to backend
+// //   const cleanQuestionForExport = (question: any) => {
+// //     const cleaned: any = {
+// //       id: question.id,
+// //       testName: question.testName,
+// //       configId: question.configId,
+// //       answer: question.answer,
+// //     };
+
+// //     // Clean all text fields by removing HTML tags
+// //     const fieldsToClean = [
+// //       "question",
+// //       "description",
+// //       "option1",
+// //       "option2",
+// //       "option3",
+// //       "option4",
+// //       "option5",
+// //       "questionText",
+// //       "questionDescription",
+// //       "optionA",
+// //       "optionB",
+// //       "optionC",
+// //       "optionD",
+// //     ];
+
+// //     fieldsToClean.forEach((field) => {
+// //       if (question[field]) {
+// //         cleaned[field] = stripHtmlTags(question[field]);
+// //       }
+// //     });
+
+// //     return cleaned;
+// //   };
+
+// //   const handleExportClick = () => {
+// //     if (selectedQuestions.length === 0) {
+// //       toast({
+// //         title: "No questions selected",
+// //         description: "Please add some questions to export first.",
+// //         variant: "destructive",
+// //       });
+// //       return;
+// //     }
+
+// //     // Set default values
+// //     const defaultDate = new Date().toLocaleDateString();
+// //     const defaultFileName = `selected-questions-${
+// //       new Date().toISOString().split("T")[0]
+// //     }`;
+// //     setFileName(defaultFileName);
+// //     setDocumentHeading(defaultFileName);
+// //     setUseSameAsFileName(true);
+// //     setShowExportDialog(true);
+// //   };
+
+// //   const handleExportToWord = async () => {
+// //     if (!documentHeading.trim() || !fileName.trim()) {
+// //       toast({
+// //         title: "Missing information",
+// //         description: "Please provide both document heading and filename.",
+// //         variant: "destructive",
+// //       });
+// //       return;
+// //     }
+
+// //     setIsExporting(true);
+// //     setShowExportDialog(false);
+
+// //     try {
+// //       // Clean all questions before sending
+// //       const cleanedQuestions = selectedQuestions.map((q) =>
+// //         cleanQuestionForExport(q)
+// //       );
+
+// //       const response = await fetch("/api/export/selected", {
+// //         method: "POST",
+// //         headers: {
+// //           "Content-Type": "application/json",
+// //         },
+// //         body: JSON.stringify({
+// //           questionIds: selectedQuestions.map((q) => q.id),
+// //           questions: cleanedQuestions, // Send cleaned questions
+// //           title: documentHeading.trim(),
+// //         }),
+// //       });
+
+// //       if (!response.ok) {
+// //         throw new Error("Export failed");
+// //       }
+
+// //       const blob = await response.blob();
+// //       const url = window.URL.createObjectURL(blob);
+// //       const a = document.createElement("a");
+// //       a.style.display = "none";
+// //       a.href = url;
+
+// //       // Clean filename and ensure .docx extension
+// //       let cleanFileName = fileName.trim().replace(/[^a-zA-Z0-9\s\-_]/g, "_");
+// //       if (!cleanFileName.toLowerCase().endsWith(".docx")) {
+// //         cleanFileName += ".docx";
+// //       }
+// //       a.download = cleanFileName;
+
+// //       document.body.appendChild(a);
+// //       a.click();
+// //       window.URL.revokeObjectURL(url);
+// //       document.body.removeChild(a);
+
+// //       toast({
+// //         title: "Export successful",
+// //         description: `${selectedQuestions.length} questions exported to Word document.`,
+// //       });
+// //     } catch (error) {
+// //       console.error("Export error:", error);
+// //       toast({
+// //         title: "Export failed",
+// //         description: "Failed to export questions. Please try again.",
+// //         variant: "destructive",
+// //       });
+// //     } finally {
+// //       setIsExporting(false);
+// //     }
+// //   };
+
+// //   const sanitizeHtml = (html: string) => {
+// //     return DOMPurify.sanitize(html, {
+// //       ALLOWED_TAGS: ["p", "br", "strong", "em", "u", "b", "i"],
+// //       ALLOWED_ATTR: [],
+// //     });
+// //   };
+
+// //   const stripHtml = (html: string) => {
+// //     return html
+// //       .replace(/<[^>]*>/g, " ")
+// //       .replace(/\s+/g, " ")
+// //       .trim();
+// //   };
+
+// //   return (
+// //     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+// //       <div className="mb-8">
+// //         <h1 className="text-3xl font-bold text-gray-900 mb-2">
+// //           Export Questions
+// //         </h1>
+// //         <p className="text-gray-600">
+// //           Manage and export your selected questions to Word documents.
+// //         </p>
+// //       </div>
+
+// //       <div className="mb-6 flex justify-between items-center">
+// //         <div className="flex items-center space-x-4">
+// //           <Badge variant="secondary" className="text-lg py-2 px-4">
+// //             {selectedQuestions.length} questions selected
+// //           </Badge>
+// //         </div>
+
+// //         <div className="flex space-x-2">
+// //           <Button
+// //             onClick={clearSelection}
+// //             variant="outline"
+// //             disabled={selectedQuestions.length === 0}
+// //           >
+// //             <Trash2 className="h-4 w-4 mr-2" />
+// //             Clear All
+// //           </Button>
+// //           <Button
+// //             onClick={handleExportClick}
+// //             disabled={selectedQuestions.length === 0 || isExporting}
+// //           >
+// //             <Download className="h-4 w-4 mr-2" />
+// //             {isExporting ? "Exporting..." : "Export to Word"}
+// //           </Button>
+// //         </div>
+// //       </div>
+
+// //       {/* Export Configuration Dialog */}
+// //       <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+// //         <DialogContent className="sm:max-w-[500px]">
+// //           <DialogHeader>
+// //             <DialogTitle>Export Configuration</DialogTitle>
+// //             <DialogDescription>
+// //               Customize your document heading and filename before exporting.
+// //             </DialogDescription>
+// //           </DialogHeader>
+
+// //           <div className="grid gap-4 py-4">
+// //             <div className="grid gap-2">
+// //               <Label htmlFor="filename">File Name</Label>
+// //               <Input
+// //                 id="filename"
+// //                 value={fileName}
+// //                 onChange={(e) => {
+// //                   setFileName(e.target.value);
+// //                   if (useSameAsFileName) {
+// //                     setDocumentHeading(e.target.value);
+// //                   }
+// //                 }}
+// //                 placeholder="Enter filename (without .docx)"
+// //                 className="col-span-3"
+// //               />
+// //               <p className="text-sm text-gray-500">
+// //                 The file will be saved as "{fileName || "filename"}.docx"
+// //               </p>
+// //             </div>
+
+// //             <div className="grid gap-2">
+// //               <Label htmlFor="heading">Document Heading</Label>
+// //               <Input
+// //                 id="heading"
+// //                 value={documentHeading}
+// //                 onChange={(e) => {
+// //                   setDocumentHeading(e.target.value);
+// //                   if (useSameAsFileName) {
+// //                     setFileName(e.target.value);
+// //                   }
+// //                 }}
+// //                 placeholder="Enter document heading"
+// //                 className="col-span-3"
+// //                 disabled={useSameAsFileName}
+// //               />
+// //               <p className="text-sm text-gray-500">
+// //                 This will appear as the title in your Word document.
+// //               </p>
+// //             </div>
+
+// //             <div className="items-center flex space-x-2 pt-2">
+// //               <Checkbox
+// //                 id="same-as-filename"
+// //                 checked={useSameAsFileName}
+// //                 onCheckedChange={(checked) => {
+// //                   setUseSameAsFileName(checked as boolean);
+// //                   if (checked) {
+// //                     setDocumentHeading(fileName);
+// //                   }
+// //                 }}
+// //               />
+// //               <Label
+// //                 htmlFor="same-as-filename"
+// //                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+// //               >
+// //                 Same as file name
+// //               </Label>
+// //             </div>
+// //           </div>
+
+// //           <DialogFooter>
+// //             <Button
+// //               variant="outline"
+// //               onClick={() => setShowExportDialog(false)}
+// //             >
+// //               Cancel
+// //             </Button>
+// //             <Button onClick={handleExportToWord} disabled={isExporting}>
+// //               <Download className="h-4 w-4 mr-2" />
+// //               Export
+// //             </Button>
+// //           </DialogFooter>
+// //         </DialogContent>
+// //       </Dialog>
+
+// //       {selectedQuestions.length === 0 ? (
+// //         <Card>
+// //           <CardContent className="text-center py-12">
+// //             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+// //             <h3 className="text-lg font-medium text-gray-900 mb-2">
+// //               No questions selected
+// //             </h3>
+// //             <p className="text-gray-600 mb-4">
+// //               Go to the search page and click "Add to Export" on questions you
+// //               want to export.
+// //             </p>
+// //           </CardContent>
+// //         </Card>
+// //       ) : (
+// //         <div className="space-y-4">
+// //           {selectedQuestions.map((question) => {
+// //             const options = [
+// //               "option1",
+// //               "option2",
+// //               "option3",
+// //               "option4",
+// //               "option5",
+// //             ];
+// //             const correctOptionKey =
+// //               question.answer && options[Number(question.answer) - 1];
+// //             const correctOptionText =
+// //               correctOptionKey &&
+// //               question[correctOptionKey as keyof typeof question];
+
+// //             return (
+// //               <Card key={question.id} className="relative">
+// //                 <CardHeader className="pb-3">
+// //                   <div className="flex justify-between items-start">
+// //                     <div className="flex-1">
+// //                       <div className="flex items-center space-x-2 mb-2">
+// //                         <Badge variant="outline">#{question.id}</Badge>
+// //                         {question.testName && (
+// //                           <Badge variant="secondary">{question.testName}</Badge>
+// //                         )}
+// //                         {question.configId && (
+// //                           <Badge variant="outline">
+// //                             Config: {question.configId}
+// //                           </Badge>
+// //                         )}
+// //                       </div>
+// //                     </div>
+// //                     <Button
+// //                       variant="ghost"
+// //                       size="sm"
+// //                       onClick={() => removeQuestion(question.id)}
+// //                       className="text-red-500 hover:text-red-700 hover:bg-red-50"
+// //                     >
+// //                       <X className="h-4 w-4" />
+// //                     </Button>
+// //                   </div>
+// //                 </CardHeader>
+// //                 <CardContent>
+// //                   <div
+// //                     className="text-gray-900 mb-3 leading-relaxed"
+// //                     dangerouslySetInnerHTML={{
+// //                       __html: sanitizeHtml(question.question || ""),
+// //                     }}
+// //                   />
+
+// //                   {question.description && (
+// //                     <div className="bg-blue-50 border-l-4 border-blue-200 p-3 mb-3">
+// //                       <div
+// //                         className="text-sm text-blue-800"
+// //                         dangerouslySetInnerHTML={{
+// //                           __html: sanitizeHtml(question.description),
+// //                         }}
+// //                       />
+// //                     </div>
+// //                   )}
+
+// //                   <div className="space-y-2 mb-3">
+// //                     {options.map(
+// //                       (key, index) =>
+// //                         question[key as keyof typeof question] && (
+// //                           <div key={key} className="text-sm text-gray-700">
+// //                             <span className="font-medium">
+// //                               {String.fromCharCode(65 + index)}:
+// //                             </span>{" "}
+// //                             {stripHtml(
+// //                               question[key as keyof typeof question] as string
+// //                             )}
+// //                           </div>
+// //                         )
+// //                     )}
+// //                   </div>
+
+// //                   {question.answer && (
+// //                     <div className="text-green-700 font-medium">
+// //                       Correct Answer: Option {question.answer}{" "}
+// //                       {correctOptionText
+// //                         ? `(${stripHtml(correctOptionText as string)})`
+// //                         : ""}
+// //                     </div>
+// //                   )}
+// //                 </CardContent>
+// //               </Card>
+// //             );
+// //           })}
+// //         </div>
+// //       )}
+// //     </div>
+// //   );
+// // }
+
+// // 2nd --------------------------------------------------------------------------------------------------
+
+// import { useState, useEffect } from "react";
 // import { Button } from "@/components/ui/button";
 // import { Card, CardContent, CardHeader } from "@/components/ui/card";
 // import { Badge } from "@/components/ui/badge";
@@ -19,6 +446,13 @@
 // import type { Question } from "@shared/schema";
 // import DOMPurify from "dompurify";
 
+// // Math rendering utility using KaTeX
+// declare global {
+//   interface Window {
+//     katex?: any;
+//   }
+// }
+
 // export default function ExportPage() {
 //   const { selectedQuestions, removeQuestion, clearSelection } = useExport();
 //   const { toast } = useToast();
@@ -27,6 +461,98 @@
 //   const [documentHeading, setDocumentHeading] = useState("");
 //   const [fileName, setFileName] = useState("");
 //   const [useSameAsFileName, setUseSameAsFileName] = useState(true);
+//   const [katexLoaded, setKatexLoaded] = useState(false);
+
+//   // Load KaTeX for math rendering
+//   useEffect(() => {
+//     if (window.katex) {
+//       setKatexLoaded(true);
+//       return;
+//     }
+
+//     const link = document.createElement("link");
+//     link.rel = "stylesheet";
+//     link.href = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
+//     document.head.appendChild(link);
+
+//     const script = document.createElement("script");
+//     script.src = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
+//     script.onload = () => {
+//       setKatexLoaded(true);
+//     };
+//     document.head.appendChild(script);
+
+//     return () => {
+//       document.head.removeChild(link);
+//       document.head.removeChild(script);
+//     };
+//   }, []);
+
+//   // Enhanced render math function
+//   const renderMathInHtml = (html: string): string => {
+//     if (!html || !katexLoaded || !window.katex) return html;
+
+//     try {
+//       let processed = html;
+
+//       // Handle display math \[ ... \]
+//       processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
+//         try {
+//           return window.katex.renderToString(latex, {
+//             displayMode: true,
+//             throwOnError: false,
+//             strict: false,
+//           });
+//         } catch (e) {
+//           return match;
+//         }
+//       });
+
+//       // Handle inline math \( ... \)
+//       processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
+//         try {
+//           return window.katex.renderToString(latex, {
+//             displayMode: false,
+//             throwOnError: false,
+//             strict: false,
+//           });
+//         } catch (e) {
+//           return match;
+//         }
+//       });
+
+//       // Handle display $$ ... $$
+//       processed = processed.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
+//         try {
+//           return window.katex.renderToString(latex, {
+//             displayMode: true,
+//             throwOnError: false,
+//             strict: false,
+//           });
+//         } catch (e) {
+//           return match;
+//         }
+//       });
+
+//       // Handle inline $ ... $ (but not $$)
+//       processed = processed.replace(/\$([^\$\n]+?)\$/g, (match, latex) => {
+//         try {
+//           return window.katex.renderToString(latex, {
+//             displayMode: false,
+//             throwOnError: false,
+//             strict: false,
+//           });
+//         } catch (e) {
+//           return match;
+//         }
+//       });
+
+//       return processed;
+//     } catch (error) {
+//       console.error("Error rendering math:", error);
+//       return html;
+//     }
+//   };
 
 //   // Function to strip HTML tags and keep plain text with line breaks
 //   const stripHtmlTags = (html: string): string => {
@@ -178,10 +704,27 @@
 //     }
 //   };
 
-//   const sanitizeHtml = (html: string) => {
-//     return DOMPurify.sanitize(html, {
-//       ALLOWED_TAGS: ["p", "br", "strong", "em", "u", "b", "i"],
-//       ALLOWED_ATTR: [],
+//   const sanitizeAndRenderMath = (html: string) => {
+//     // First render math
+//     const withMath = renderMathInHtml(html);
+
+//     // Then sanitize, allowing KaTeX classes and spans
+//     return DOMPurify.sanitize(withMath, {
+//       ALLOWED_TAGS: [
+//         "p",
+//         "br",
+//         "strong",
+//         "em",
+//         "u",
+//         "b",
+//         "i",
+//         "span",
+//         "div",
+//         "sup",
+//         "sub",
+//       ],
+//       ALLOWED_ATTR: ["class", "style"],
+//       ALLOW_DATA_ATTR: false,
 //     });
 //   };
 
@@ -374,7 +917,7 @@
 //                   <div
 //                     className="text-gray-900 mb-3 leading-relaxed"
 //                     dangerouslySetInnerHTML={{
-//                       __html: sanitizeHtml(question.question || ""),
+//                       __html: sanitizeAndRenderMath(question.question || ""),
 //                     }}
 //                   />
 
@@ -383,7 +926,7 @@
 //                       <div
 //                         className="text-sm text-blue-800"
 //                         dangerouslySetInnerHTML={{
-//                           __html: sanitizeHtml(question.description),
+//                           __html: sanitizeAndRenderMath(question.description),
 //                         }}
 //                       />
 //                     </div>
@@ -393,14 +936,21 @@
 //                     {options.map(
 //                       (key, index) =>
 //                         question[key as keyof typeof question] && (
-//                           <div key={key} className="text-sm text-gray-700">
-//                             <span className="font-medium">
-//                               {String.fromCharCode(65 + index)}:
-//                             </span>{" "}
-//                             {stripHtml(
-//                               question[key as keyof typeof question] as string
-//                             )}
-//                           </div>
+//                           <div
+//                             key={key}
+//                             className="text-sm text-gray-700"
+//                             dangerouslySetInnerHTML={{
+//                               __html:
+//                                 `<span class="font-medium">${String.fromCharCode(
+//                                   65 + index
+//                                 )}:</span> ` +
+//                                 sanitizeAndRenderMath(
+//                                   question[
+//                                     key as keyof typeof question
+//                                   ] as string
+//                                 ),
+//                             }}
+//                           />
 //                         )
 //                     )}
 //                   </div>
@@ -423,8 +973,6 @@
 //   );
 // }
 
-// 2nd --------------------------------------------------------------------------------------------------
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -440,7 +988,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Download, Trash2, FileText, X } from "lucide-react";
+import { Download, Trash2, FileText, X, Sparkles, Loader2 } from "lucide-react";
 import { useExport } from "@/contexts/ExportContext";
 import { useToast } from "@/hooks/use-toast";
 import type { Question } from "@shared/schema";
@@ -457,7 +1005,9 @@ export default function ExportPage() {
   const { selectedQuestions, removeQuestion, clearSelection } = useExport();
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
+  const [isAiExporting, setIsAiExporting] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showAiExportDialog, setShowAiExportDialog] = useState(false);
   const [documentHeading, setDocumentHeading] = useState("");
   const [fileName, setFileName] = useState("");
   const [useSameAsFileName, setUseSameAsFileName] = useState(true);
@@ -558,22 +1108,17 @@ export default function ExportPage() {
   const stripHtmlTags = (html: string): string => {
     if (!html) return "";
 
-    // Replace <br> and </p> with newlines to preserve formatting
     let text = html.replace(/<br\s*\/?>/gi, "\n");
     text = text.replace(/<\/p>/gi, "\n\n");
     text = text.replace(/<p>/gi, "");
-
-    // Remove all other HTML tags
     text = text.replace(/<[^>]*>/g, "");
 
-    // Decode HTML entities
     const textarea = document.createElement("textarea");
     textarea.innerHTML = text;
     text = textarea.value;
 
-    // Clean up excessive whitespace while preserving intentional line breaks
-    text = text.replace(/[ \t]+/g, " "); // Multiple spaces to single space
-    text = text.replace(/\n\s*\n\s*\n/g, "\n\n"); // Max 2 consecutive newlines
+    text = text.replace(/[ \t]+/g, " ");
+    text = text.replace(/\n\s*\n\s*\n/g, "\n\n");
     text = text.trim();
 
     return text;
@@ -588,7 +1133,6 @@ export default function ExportPage() {
       answer: question.answer,
     };
 
-    // Clean all text fields by removing HTML tags
     const fieldsToClean = [
       "question",
       "description",
@@ -597,12 +1141,6 @@ export default function ExportPage() {
       "option3",
       "option4",
       "option5",
-      "questionText",
-      "questionDescription",
-      "optionA",
-      "optionB",
-      "optionC",
-      "optionD",
     ];
 
     fieldsToClean.forEach((field) => {
@@ -624,8 +1162,6 @@ export default function ExportPage() {
       return;
     }
 
-    // Set default values
-    const defaultDate = new Date().toLocaleDateString();
     const defaultFileName = `selected-questions-${
       new Date().toISOString().split("T")[0]
     }`;
@@ -633,6 +1169,25 @@ export default function ExportPage() {
     setDocumentHeading(defaultFileName);
     setUseSameAsFileName(true);
     setShowExportDialog(true);
+  };
+
+  const handleAiExportClick = () => {
+    if (selectedQuestions.length === 0) {
+      toast({
+        title: "No questions selected",
+        description: "Please add some questions to export first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const defaultFileName = `ai-enhanced-questions-${
+      new Date().toISOString().split("T")[0]
+    }`;
+    setFileName(defaultFileName);
+    setDocumentHeading(defaultFileName);
+    setUseSameAsFileName(true);
+    setShowAiExportDialog(true);
   };
 
   const handleExportToWord = async () => {
@@ -649,7 +1204,6 @@ export default function ExportPage() {
     setShowExportDialog(false);
 
     try {
-      // Clean all questions before sending
       const cleanedQuestions = selectedQuestions.map((q) =>
         cleanQuestionForExport(q)
       );
@@ -661,7 +1215,7 @@ export default function ExportPage() {
         },
         body: JSON.stringify({
           questionIds: selectedQuestions.map((q) => q.id),
-          questions: cleanedQuestions, // Send cleaned questions
+          questions: cleanedQuestions,
           title: documentHeading.trim(),
         }),
       });
@@ -676,7 +1230,6 @@ export default function ExportPage() {
       a.style.display = "none";
       a.href = url;
 
-      // Clean filename and ensure .docx extension
       let cleanFileName = fileName.trim().replace(/[^a-zA-Z0-9\s\-_]/g, "_");
       if (!cleanFileName.toLowerCase().endsWith(".docx")) {
         cleanFileName += ".docx";
@@ -704,11 +1257,85 @@ export default function ExportPage() {
     }
   };
 
-  const sanitizeAndRenderMath = (html: string) => {
-    // First render math
-    const withMath = renderMathInHtml(html);
+  const handleAiExportToWord = async () => {
+    if (!documentHeading.trim() || !fileName.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please provide both document heading and filename.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    // Then sanitize, allowing KaTeX classes and spans
+    setIsAiExporting(true);
+    setShowAiExportDialog(false);
+
+    try {
+      toast({
+        title: "AI Processing Started",
+        description:
+          "Gemini AI is analyzing and formatting your questions. This may take a moment...",
+      });
+
+      const cleanedQuestions = selectedQuestions.map((q) =>
+        cleanQuestionForExport(q)
+      );
+
+      const response = await fetch("/api/export/ai-enhanced", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          questionIds: selectedQuestions.map((q) => q.id),
+          questions: cleanedQuestions,
+          title: documentHeading.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "AI export failed");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+
+      let cleanFileName = fileName.trim().replace(/[^a-zA-Z0-9\s\-_]/g, "_");
+      if (!cleanFileName.toLowerCase().endsWith(".docx")) {
+        cleanFileName += ".docx";
+      }
+      a.download = cleanFileName;
+
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "AI Export Successful! ✨",
+        description: `${selectedQuestions.length} questions processed by Gemini AI and exported with enhanced formatting.`,
+      });
+    } catch (error) {
+      console.error("AI Export error:", error);
+      toast({
+        title: "AI Export Failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to process questions with AI. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAiExporting(false);
+    }
+  };
+
+  const sanitizeAndRenderMath = (html: string) => {
+    const withMath = renderMathInHtml(html);
     return DOMPurify.sanitize(withMath, {
       ALLOWED_TAGS: [
         "p",
@@ -764,15 +1391,32 @@ export default function ExportPage() {
           </Button>
           <Button
             onClick={handleExportClick}
-            disabled={selectedQuestions.length === 0 || isExporting}
+            disabled={
+              selectedQuestions.length === 0 || isExporting || isAiExporting
+            }
+            variant="outline"
           >
             <Download className="h-4 w-4 mr-2" />
             {isExporting ? "Exporting..." : "Export to Word"}
           </Button>
+          <Button
+            onClick={handleAiExportClick}
+            disabled={
+              selectedQuestions.length === 0 || isExporting || isAiExporting
+            }
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          >
+            {isAiExporting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-2" />
+            )}
+            {isAiExporting ? "AI Processing..." : "Export with AI ✨"}
+          </Button>
         </div>
       </div>
 
-      {/* Export Configuration Dialog */}
+      {/* Regular Export Configuration Dialog */}
       <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -852,6 +1496,111 @@ export default function ExportPage() {
             <Button onClick={handleExportToWord} disabled={isExporting}>
               <Download className="h-4 w-4 mr-2" />
               Export
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Export Configuration Dialog */}
+      <Dialog open={showAiExportDialog} onOpenChange={setShowAiExportDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              AI-Enhanced Export Configuration
+            </DialogTitle>
+            <DialogDescription>
+              Gemini AI will analyze LaTeX equations, format content for LMS
+              compatibility, and ensure proper math rendering.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="ai-filename">File Name</Label>
+              <Input
+                id="ai-filename"
+                value={fileName}
+                onChange={(e) => {
+                  setFileName(e.target.value);
+                  if (useSameAsFileName) {
+                    setDocumentHeading(e.target.value);
+                  }
+                }}
+                placeholder="Enter filename (without .docx)"
+                className="col-span-3"
+              />
+              <p className="text-sm text-gray-500">
+                The file will be saved as "{fileName || "filename"}.docx"
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="ai-heading">Document Heading</Label>
+              <Input
+                id="ai-heading"
+                value={documentHeading}
+                onChange={(e) => {
+                  setDocumentHeading(e.target.value);
+                  if (useSameAsFileName) {
+                    setFileName(e.target.value);
+                  }
+                }}
+                placeholder="Enter document heading"
+                className="col-span-3"
+                disabled={useSameAsFileName}
+              />
+              <p className="text-sm text-gray-500">
+                This will appear as the title in your Word document.
+              </p>
+            </div>
+
+            <div className="items-center flex space-x-2 pt-2">
+              <Checkbox
+                id="ai-same-as-filename"
+                checked={useSameAsFileName}
+                onCheckedChange={(checked) => {
+                  setUseSameAsFileName(checked as boolean);
+                  if (checked) {
+                    setDocumentHeading(fileName);
+                  }
+                }}
+              />
+              <Label
+                htmlFor="ai-same-as-filename"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Same as file name
+              </Label>
+            </div>
+
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mt-2">
+              <p className="text-sm text-purple-900 font-medium mb-2">
+                ✨ AI Enhancements:
+              </p>
+              <ul className="text-sm text-purple-800 space-y-1">
+                <li>• Validates and corrects LaTeX equations</li>
+                <li>• Converts math to LMS-compatible Unicode</li>
+                <li>• Ensures proper bilingual formatting</li>
+                <li>• Optimizes content structure</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAiExportDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAiExportToWord}
+              disabled={isAiExporting}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Export with AI
             </Button>
           </DialogFooter>
         </DialogContent>
