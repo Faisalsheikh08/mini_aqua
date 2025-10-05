@@ -1,239 +1,3 @@
-// // import express, { type Request, Response, NextFunction } from "express";
-// // import { registerRoutes } from "./routes";
-// // import { setupVite, serveStatic, log } from "./vite";
-// // import dotenv from 'dotenv';
-// // dotenv.config();
-
-
-// // // Railway compatibility fixes
-// // const PORT = process.env.PORT || 5000;
-
-// // // Memory monitoring function with more aggressive cleanup
-// // function checkMemoryUsage() {
-// //   const memUsage = process.memoryUsage();
-// //   const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
-// //   const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
-  
-// //   // More aggressive memory management for bulk exports
-// //   if (heapUsedMB > 1500) { // Alert if using more than 1.5GB
-// //     console.warn(`⚠️  HIGH MEMORY USAGE: ${heapUsedMB}MB / ${heapTotalMB}MB heap used`);
-// //     if (global.gc) {
-// //       console.log("Running garbage collection...");
-// //       global.gc();
-      
-// //       // Check memory again after GC
-// //       const newMemUsage = process.memoryUsage();
-// //       const newHeapUsedMB = Math.round(newMemUsage.heapUsed / 1024 / 1024);
-// //       console.log(`Memory after GC: ${newHeapUsedMB}MB`);
-// //     }
-// //   }
-  
-// //   return { heapUsedMB, heapTotalMB };
-// // }
-
-// // const app = express();
-// // app.use(express.json({ limit: '50mb' }));
-// // app.use(express.urlencoded({ extended: false, limit: '50mb' }));
-
-// // app.use((req, res, next) => {
-// //   const start = Date.now();
-// //   const path = req.path;
-// //   let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-// //   const originalResJson = res.json;
-// //   res.json = function (bodyJson, ...args) {
-// //     capturedJsonResponse = bodyJson;
-// //     return originalResJson.apply(res, [bodyJson, ...args]);
-// //   };
-
-// //   res.on("finish", () => {
-// //     const duration = Date.now() - start;
-// //     if (path.startsWith("/api")) {
-// //       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-// //       if (capturedJsonResponse) {
-// //         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-// //       }
-
-// //       if (logLine.length > 80) {
-// //         logLine = logLine.slice(0, 79) + "…";
-// //       }
-
-// //       log(logLine);
-// //     }
-// //   });
-
-// //   next();
-// // });
-
-// // (async () => {
-// //   // Initial memory check
-// //   const initialMemory = checkMemoryUsage();
-// //   log(`Starting server with ${initialMemory.heapUsedMB}MB heap usage`);
-  
-// //   // Set up memory monitoring
-// //   setInterval(checkMemoryUsage, 60000); // Check every minute
-  
-// //   const server = await registerRoutes(app);
-  
-// //   // Add health check endpoint for production monitoring
-// //   app.get("/api/health", (req, res) => {
-// //     res.status(200).json({ 
-// //       status: "healthy",
-// //       timestamp: new Date().toISOString(),
-// //       uptime: process.uptime(),
-// //       memory: process.memoryUsage(),
-// //       version: "1.0.0"
-// //     });
-// //   });
-
-// //   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-// //     const status = err.status || err.statusCode || 500;
-// //     const message = err.message || "Internal Server Error";
-
-// //     res.status(status).json({ message });
-// //     throw err;
-// //   });
-
-// //   // importantly only setup vite in development and after
-// //   // setting up all the other routes so the catch-all route
-// //   // doesn't interfere with the other routes
-// //   if (app.get("env") === "development") {
-// //     await setupVite(app, server);
-// //   } else {
-// //     serveStatic(app);
-// //   }
-
-// //   // Railway deployment compatibility
-// //   const port = parseInt(process.env.PORT || '5000', 10);
-// //   const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
-  
-// //   server.listen(port, host, () => {
-// //     log(`serving on port ${port} at ${host}`);
-// //     log(`Environment: ${process.env.NODE_ENV}`);
-// //     log(`Database URL configured: ${process.env.DATABASE_URL ? 'Yes' : 'No'}`);
-// //   });
-// // })();
-
-// // import express, { type Request, Response, NextFunction } from "express";
-// // import { registerRoutes } from "./routes";
-// // import { setupVite, serveStatic, log } from "./vite";
-// // import dotenv from 'dotenv';
-// // dotenv.config();
-
-
-// // // Railway compatibility fixes
-// // const PORT = process.env.PORT || 5000;
-
-// // // Memory monitoring function with more aggressive cleanup
-// // function checkMemoryUsage() {
-// //   const memUsage = process.memoryUsage();
-// //   const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
-// //   const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
-  
-// //   // More aggressive memory management for bulk exports
-// //   if (heapUsedMB > 1500) { // Alert if using more than 1.5GB
-// //     console.warn(`⚠️  HIGH MEMORY USAGE: ${heapUsedMB}MB / ${heapTotalMB}MB heap used`);
-// //     if (global.gc) {
-// //       console.log("Running garbage collection...");
-// //       global.gc();
-      
-// //       // Check memory again after GC
-// //       const newMemUsage = process.memoryUsage();
-// //       const newHeapUsedMB = Math.round(newMemUsage.heapUsed / 1024 / 1024);
-// //       console.log(`Memory after GC: ${newHeapUsedMB}MB`);
-// //     }
-// //   }
-  
-// //   return { heapUsedMB, heapTotalMB };
-// // }
-
-// // const app = express();
-// // app.use(express.json({ limit: '50mb' }));
-// // app.use(express.urlencoded({ extended: false, limit: '50mb' }));
-
-// // app.use((req, res, next) => {
-// //   const start = Date.now();
-// //   const path = req.path;
-// //   let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-// //   const originalResJson = res.json;
-// //   res.json = function (bodyJson, ...args) {
-// //     capturedJsonResponse = bodyJson;
-// //     return originalResJson.apply(res, [bodyJson, ...args]);
-// //   };
-
-// //   res.on("finish", () => {
-// //     const duration = Date.now() - start;
-// //     if (path.startsWith("/api")) {
-// //       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-// //       if (capturedJsonResponse) {
-// //         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-// //       }
-
-// //       if (logLine.length > 80) {
-// //         logLine = logLine.slice(0, 79) + "…";
-// //       }
-
-// //       log(logLine);
-// //     }
-// //   });
-
-// //   next();
-// // });
-
-// // (async () => {
-// //   // Initial memory check
-// //   const initialMemory = checkMemoryUsage();
-// //   log(`Starting server with ${initialMemory.heapUsedMB}MB heap usage`);
-  
-// //   // Set up memory monitoring
-// //   setInterval(checkMemoryUsage, 60000); // Check every minute
-  
-// //   const server = await registerRoutes(app);
-  
-// //   // Add health check endpoint for production monitoring
-// //   // app.get("/api/health", (req, res) => {
-// //   //   res.status(200).json({ 
-// //   //     status: "healthy",
-// //   //     timestamp: new Date().toISOString(),
-// //   //     uptime: process.uptime(),
-// //   //     memory: process.memoryUsage(),
-// //   //     version: "1.0.0"
-// //   //   });
-// //   // });
-// //   app.get("/api/health", (_req, res) => {
-// //   res.status(200).json({ status: "healthy" });
-// // });
-
-
-// //   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-// //     const status = err.status || err.statusCode || 500;
-// //     const message = err.message || "Internal Server Error";
-
-// //     res.status(status).json({ message });
-// //     throw err;
-// //   });
-
-// //   // importantly only setup vite in development and after
-// //   // setting up all the other routes so the catch-all route
-// //   // doesn't interfere with the other routes
-// //   if (app.get("env") === "development") {
-// //     await setupVite(app, server);
-// //   } else {
-// //     serveStatic(app);
-// //   }
-
-// //   // Railway deployment compatibility
-// //   const port = parseInt(process.env.PORT || '5000', 10);
-// //   const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
-  
-// //   server.listen(port, host, () => {
-// //     log(`serving on port ${port} at ${host}`);
-// //     log(`Environment: ${process.env.NODE_ENV}`);
-// //     log(`Database URL configured: ${process.env.DATABASE_URL ? 'Yes' : 'No'}`);
-// //   });
-// // })();
-
 import express from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -252,7 +16,9 @@ function checkMemoryUsage() {
   const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
 
   if (heapUsedMB > 1500) {
-    console.warn(` HIGH MEMORY USAGE: ${heapUsedMB}MB / ${heapTotalMB}MB heap used`);
+    console.warn(
+      ` HIGH MEMORY USAGE: ${heapUsedMB}MB / ${heapTotalMB}MB heap used`
+    );
     if (global.gc) {
       console.log("Running garbage collection...");
       global.gc();
@@ -285,7 +51,8 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      if (capturedJsonResponse)
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       if (logLine.length > 80) logLine = logLine.slice(0, 79) + "…";
       log(logLine);
     }
@@ -350,11 +117,12 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     server.listen(PORT, host, () => {
       log(`Server running at http://${host}:${PORT}`);
       log(`Environment: ${process.env.NODE_ENV}`);
-      log(`Database URL configured: ${process.env.DATABASE_URL ? "Yes" : "No"}`);
+      log(
+        `Database URL configured: ${process.env.DATABASE_URL ? "Yes" : "No"}`
+      );
     });
   } catch (err) {
     console.error("Failed to start server:", err);
     process.exit(1); // exit container if DB fails
   }
 })();
-
