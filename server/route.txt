@@ -269,18 +269,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(
         `AI-Enhanced export started for ${questionIds.length} questions`
       );
-      req.setTimeout(500000);
+
+      // Set a reasonable timeout
+      req.setTimeout(300000); // 5 minutes
 
       // Get questions by IDs
       let questions;
       try {
-        const results = await Promise.allSettled(
+        questions = await Promise.all(
           questionIds.map((id) => storage.getQuestion(id))
         );
-
-        questions = results
-          .filter((result) => result.status === "fulfilled" && result.value)
-          .map((result) => (result as PromiseFulfilledResult<any>).value);
+        questions = questions.filter((q) => q !== undefined && q !== null);
       } catch (dbError: any) {
         console.error("Database error during AI export:", dbError);
         return res.status(503).json({
@@ -296,22 +295,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ message: "No questions found with the provided IDs" });
       }
 
-      // ✅ FIX 1: Remove duplicates BEFORE AI processing
-      const uniqueQuestions = removeDuplicateQuestions(questions);
-      console.log(
-        `Processing ${uniqueQuestions.length} unique questions (removed ${
-          questions.length - uniqueQuestions.length
-        } duplicates)`
-      );
+      console.log(`Processing ${questions.length} questions with Gemini AI...`);
 
-      // ✅ FIX 2: Fast AI processing with parallel batches
-      const processedQuestions = await processQuestionsWithAIFast(
-        uniqueQuestions
-      );
+      // Process questions with AI in batches
+      const processedQuestions = await processQuestionsWithAI(questions);
 
       console.log(`AI processing complete. Creating Word document...`);
 
-      // Create Word document
+      // Create Word document with AI-processed content
       const documentTitle =
         title ||
         `AI-Enhanced Questions Export - ${new Date().toLocaleDateString()}`;
@@ -320,7 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate buffer
       const buffer = await Packer.toBuffer(doc);
 
-      // Send file
+      // Set headers for file download
       const fileName = `ai-enhanced-questions-${
         new Date().toISOString().split("T")[0]
       }.docx`;
@@ -334,6 +325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       res.setHeader("Content-Length", buffer.length);
 
+      // Send the file
       res.send(buffer);
     } catch (error) {
       console.error("Error in AI-enhanced export:", error);
@@ -2150,167 +2142,133 @@ async function analyzeQuestionGroup(questions: any[], configId: string) {
   };
 }
 
-function removeDuplicateQuestions(questions: any[]): any[] {
-  const seen = new Set<string>();
-  const unique: any[] = [];
-
-  for (const question of questions) {
-    // Create unique key from questionId + configId + question text
-    const key = `${question.questionId}_${
-      question.configId
-    }_${question.question?.substring(0, 100)}`;
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      unique.push(question);
-    } else {
-      console.log(`Skipping duplicate: ${question.questionId}`);
-    }
-  }
-
-  return unique;
-}
-
-// ✅ OPTIMIZED: Fast AI Processing with larger batches and parallel processing
-async function processQuestionsWithAIFast(questions: any[]): Promise<any[]> {
+// AI Processing function
+async function processQuestionsWithAI(questions: any[]): Promise<any[]> {
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const processedQuestions: any[] = [];
-  const batchSize = 20; // Process 20 questions at once
-  const parallelRequests = 5; // 5 parallel API calls
+  const batchSize = 5;
 
-  console.log(
-    `Fast AI processing: ${questions.length} questions with batch size ${batchSize}`
-  );
-
-  for (let i = 0; i < questions.length; i += batchSize * parallelRequests) {
-    const megaBatch = questions.slice(i, i + batchSize * parallelRequests);
+  for (let i = 0; i < questions.length; i += batchSize) {
+    const batch = questions.slice(i, i + batchSize);
 
     console.log(
-      `Processing questions ${i + 1}-${Math.min(
-        i + megaBatch.length,
-        questions.length
-      )} of ${questions.length}`
+      `Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(
+        questions.length / batchSize
+      )}`
     );
 
-    // Split into parallel batches
-    const batches: any[][] = [];
-    for (let j = 0; j < megaBatch.length; j += batchSize) {
-      batches.push(megaBatch.slice(j, j + batchSize));
-    }
+    for (const question of batch) {
+      try {
+        // const aiProcessedQuestion = await processQuestionWithAI(
+        // model,
+        // question
 
-    // Process all batches in parallel
-    const batchResults = await Promise.allSettled(
-      batches.map((batch) => processBatchWithAIFast(model, batch))
-    );
-
-    // Collect results
-    for (const result of batchResults) {
-      if (result.status === "fulfilled") {
-        processedQuestions.push(...result.value);
-      } else {
-        console.error("Batch failed, using original questions:", result.reason);
-        // Fallback: use original questions if AI fails
-        const failedBatchIndex = batchResults.indexOf(result);
-        if (failedBatchIndex >= 0 && batches[failedBatchIndex]) {
-          processedQuestions.push(...batches[failedBatchIndex]);
+        const aiProcessedQuestion = await processQuestionWithAI(question);
+        if (aiProcessedQuestion) {
+          processedQuestions.push(aiProcessedQuestion);
+        } else {
+          processedQuestions.push(question); // Fallback to original
         }
+        processedQuestions.push(aiProcessedQuestion);
+      } catch (error) {
+        console.error(`Error processing question ${question.id}:`, error);
+        // Fallback to original question if AI processing fails
+        processedQuestions.push(question);
       }
     }
 
-    // Minimal delay between mega-batches
-    if (i + megaBatch.length < questions.length) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    // Small delay to avoid rate limiting
+    if (i + batchSize < questions.length) {
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
 
-  console.log(
-    `AI processing completed: ${processedQuestions.length} questions`
-  );
   return processedQuestions;
 }
 
-// ✅ Process batch of questions with AI (optimized)
-async function processBatchWithAIFast(
-  model: any,
-  batch: any[]
-): Promise<any[]> {
+// Process single question with AI
+async function processQuestionWithAI(question: any): Promise<any> {
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   const prompt = `
-You are a LaTeX to Unicode converter for educational content. Convert math expressions ONLY, preserve all other content exactly.
+You are an expert in formatting educational content for Learning Management Systems (LMS).
 
-CONVERSION RULES:
-1. Fractions: \\frac{1}{2} → ½, \\frac{1}{4} → ¼, \\frac{3}{4} → ¾, \\frac{a}{b} → (a/b)
-2. Symbols: \\pi → π, \\theta → θ, \\times → ×, \\div → ÷, \\sqrt → √, \\infty → ∞
-3. Superscripts: ^2 → ², ^3 → ³, x^2 → x²
-4. Subscripts: _1 → ₁, _2 → ₂, H_2O → H₂O
-5. Remove LaTeX delimiters: \\( \\) \\[ \\]
-6. Mixed numbers: 365\\frac{1}{2} → 365½
-7. Decode HTML entities: &nbsp; → space, &aacute; → á, &ntilde; → ñ
+Task: Process the following question data to ensure:
+1. All LaTeX math expressions are properly formatted and converted to Unicode where possible
+2. Bilingual content (English/Hindi) is properly separated
+3. HTML entities are properly decoded
+4. Content is clean and LMS-compatible
+5. Math equations use proper Unicode symbols (½, ¼, ¾, √, π, etc.)
 
-Process these ${batch.length} questions:
+Question Data:
+Question: ${question.question || ""}
+Option A: ${question.option1 || ""}
+Option B: ${question.option2 || ""}
+Option C: ${question.option3 || ""}
+Option D: ${question.option4 || ""}
+Option E: ${question.option5 || ""}
+Answer: ${question.answer || ""}
+Explanation: ${question.description || ""}
 
-${batch
-  .map(
-    (q, idx) => `
-QUESTION ${idx + 1}:
-Q: ${q.question || ""}
-A: ${q.option1 || ""}
-B: ${q.option2 || ""}
-C: ${q.option3 || ""}
-D: ${q.option4 || ""}
-E: ${q.option5 || ""}
-Explanation: ${q.description || ""}
-`
-  )
-  .join("\n")}
+Rules:
+- Convert LaTeX fractions like \\frac{1}{2} to ½, \\frac{1}{4} to ¼, \\frac{3}{4} to ¾
+- Convert LaTeX symbols: \\pi to π, \\theta to θ, \\times to ×, \\div to ÷, \\sqrt to √
+- Convert superscripts: ^2 to ², ^3 to ³
+- Remove all HTML tags but preserve line breaks
+- Decode HTML entities (ñ, é, ó, á, etc.)
+- Separate bilingual text with clear markers
+- Keep mathematical expressions readable
+- Ensure LMS compatibility
 
-Return ONLY valid JSON array (no markdown):
-[
-  {
-    "question": "converted question",
-    "option1": "converted option A",
-    "option2": "converted option B",
-    "option3": "converted option C",
-    "option4": "converted option D",
-    "option5": "converted option E",
-    "description": "converted explanation"
-  }
-]`;
+Return ONLY a JSON object with this exact structure (no markdown, no code blocks):
+{
+  "question": "cleaned question text",
+  "option1": "cleaned option A",
+  "option2": "cleaned option B",
+  "option3": "cleaned option C",
+  "option4": "cleaned option D",
+  "option5": "cleaned option E",
+  "answer": ${question.answer || "null"},
+  "description": "cleaned explanation"
+}
+`;
 
   try {
     const result = await model.generateContent(prompt);
     const response = await result.response;
     let text = response.text().trim();
 
-    // Remove markdown code blocks
-    text = text
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
+    // Remove markdown code blocks if present
+    text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
-    const aiResponses = JSON.parse(text);
+    // Parse the AI response
+    try {
+      const aiResponse = JSON.parse(text);
+      console.log("AI Response:", aiResponse);
 
-    if (!Array.isArray(aiResponses) || aiResponses.length !== batch.length) {
-      console.warn(
-        `AI returned ${aiResponses.length} results for ${batch.length} questions, using originals`
-      );
-      return batch;
+      if (!aiResponse.question && !aiResponse.option1 && !aiResponse.option2) {
+        throw new Error("AI response missing key fields");
+      }
+
+      // Merge AI-processed content with original question data
+      return {
+        ...question,
+        question: aiResponse.question || question.question,
+        option1: aiResponse.option1 || question.option1,
+        option2: aiResponse.option2 || question.option2,
+        option3: aiResponse.option3 || question.option3,
+        option4: aiResponse.option4 || question.option4,
+        option5: aiResponse.option5 || question.option5,
+        description: aiResponse.description || question.description,
+        answer: question.answer, // Keep original answer number
+      };
+    } catch (parseError) {
+      console.error("Error parsing AI response:", parseError);
+      return question;
     }
-
-    // Merge AI results with original data
-    return batch.map((original, idx) => ({
-      ...original,
-      question: aiResponses[idx]?.question || original.question,
-      option1: aiResponses[idx]?.option1 || original.option1,
-      option2: aiResponses[idx]?.option2 || original.option2,
-      option3: aiResponses[idx]?.option3 || original.option3,
-      option4: aiResponses[idx]?.option4 || original.option4,
-      option5: aiResponses[idx]?.option5 || original.option5,
-      description: aiResponses[idx]?.description || original.description,
-      answer: original.answer, // Keep original answer
-    }));
   } catch (error) {
-    console.error("AI batch processing error:", error);
-    return batch; // Return original questions on error
+    console.error("AI processing error:", error);
+    // Return original question if AI fails
+    return question;
   }
 }
