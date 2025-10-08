@@ -1,5 +1,4 @@
-// 2nd-------------------------------------------------------------------------------------------------------
-
+// Enhanced LaTeX to Unicode conversion for Word export
 import {
   Document,
   Paragraph,
@@ -12,8 +11,7 @@ import { Question } from "../shared/schema";
 import { parse } from "node-html-parser";
 import { replacements } from "./replacement.ts";
 
-// Unicodeit replacement data and functions
-
+// Subscript/Superscript mappings
 const subsuperscripts: [string, string][] = [
   ["_x", "ₓ"],
   ["_v", "ᵥ"],
@@ -32,7 +30,6 @@ const subsuperscripts: [string, string][] = [
   ["_h", "ₕ"],
   ["_e", "ₑ"],
   ["_a", "ₐ"],
-  ["^∫", "ᶴ"],
   ["_>", "˲"],
   ["_=", "₌"],
   ["_<", "˱"],
@@ -76,7 +73,7 @@ const subsuperscripts: [string, string][] = [
   ["^7", "⁷"],
   ["^(", "⁽"],
   ["^)", "⁾"],
-  ["^*", "*"],
+  ["^*", "⁎"],
   ["^+", "⁺"],
   ["^-", "⁻"],
   ["^−", "⁻"],
@@ -85,7 +82,7 @@ const subsuperscripts: [string, string][] = [
   ["^R", "ᴿ"],
   ["^T", "ᵀ"],
   ["^U", "ᵁ"],
-  ["^V", "ᄑ"],
+  ["^V", "ⱽ"],
   ["^W", "ᵂ"],
   ["^H", "ᴴ"],
   ["^I", "ᴵ"],
@@ -144,726 +141,361 @@ const combiningmarks: [string, string][] = [
   ["\\hat", "\u0302"],
 ];
 
-// Unicodeit replace function adapted from the library
-function unicodeitReplace(text: string): string {
-  if (!text) return "";
+// CRITICAL: Process fractions recursively FIRST
+function replaceFractions(text: string): string {
+  let maxIterations = 10; // Prevent infinite loops
+  let changed = true;
 
-  // Ensure text is a string
-  if (typeof text !== "string") {
-    console.warn("unicodeitReplace received non-string:", typeof text, text);
-    text = String(text);
-  }
-
-  // Handle \not prefix (e.g., \not\subset -> \slash{\subset})
-  text = text.replace(/\\not(\\[A-z]+)/g, "\\slash{$1}");
-
-  if (!text) return "";
-
-  // Apply main replacements
-  for (const [latex, unicode] of replacements) {
-    if (latex instanceof RegExp) {
-      // If it's a regex, use .replace()
-      text = text.replace(latex, unicode);
-    } else {
-      // Otherwise, simple string replacement
-      text = text.split(latex).join(unicode);
-    }
-  }
-
-  // Handle superscripts in braces: ^{01234} -> ^0^1^2^3^4
-  let isup = -1;
-  while (
-    (isup = text.indexOf("^{", isup + 1)) > -1 &&
-    text.indexOf("}", isup + 1) > isup
-  ) {
-    const endBrace = text.indexOf("}", isup + 1);
-    const content = text.slice(isup + 2, endBrace);
-    if (content.length > 0) {
-      const expanded = content
-        .split("")
-        .map((c) => "^" + c)
-        .join("");
-      text = text.slice(0, isup) + expanded + text.slice(endBrace + 1);
-    }
-  }
-
-  // Handle subscripts in braces: _{01234} -> _0_1_2_3_4
-  let isub = -1;
-  while (
-    (isub = text.indexOf("_{", isub + 1)) > -1 &&
-    text.indexOf("}", isub + 1) > isub
-  ) {
-    const endBrace = text.indexOf("}", isub + 1);
-    const content = text.slice(isub + 2, endBrace);
-    if (content.length > 0) {
-      const expanded = content
-        .split("")
-        .map((c) => "_" + c)
-        .join("");
-      text = text.slice(0, isub) + expanded + text.slice(endBrace + 1);
-    }
-  }
-
-  // Apply subscript and superscript replacements
-  for (const [latex, unicode] of subsuperscripts) {
-    text = text.split(latex).join(unicode);
-  }
-
-  // Handle combining marks
-  for (const [latex, unicode] of combiningmarks) {
-    const pattern = new RegExp("\\\\" + latex.slice(1) + "\\{(.?)\\}", "g");
-    text = text.replace(pattern, (match, char) => {
-      return char ? char + unicode : unicode;
-    });
+  while (changed && maxIterations-- > 0) {
+    const original = text;
+    // Match nested fractions with proper brace counting
+    text = text.replace(
+      /\\frac\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g,
+      (match, num, den) => {
+        return `(${num})/(${den})`;
+      }
+    );
+    changed = text !== original;
   }
 
   return text;
 }
 
-// function unicodeitReplace(text: any): string {
-//   if (!text) return "";
-//   if (typeof text !== "string") text = String(text);
+// Process square roots recursively
+function replaceSqrt(text: string): string {
+  // \sqrt[n]{x} -> ⁿ√(x)
+  text = text.replace(/\\sqrt\[([^\]]+)\]\{([^{}]+)\}/g, (_, n, x) => {
+    const superN = convertToSuperscript(n);
+    return `${superN}√(${x})`;
+  });
 
-//   // Handle \not prefix
-//   text = text.replace(/\\not\\([A-Za-z]+)/g, (_, cmd) => {
-//     const slashChar = "\u0338";
-//     return "\\" + cmd + slashChar;
-//   });
+  // \sqrt{x} -> √(x)
+  text = text.replace(/\\sqrt\{([^{}]+)\}/g, (_, x) => `√(${x})`);
 
-//   // Main replacements
-//   for (const [latex, unicode] of replacements) {
-//     const escapedLatex = latex.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-//     text = text.replace(new RegExp(escapedLatex, "g"), unicode);
-//   }
-
-//   // Superscripts in braces
-//   text = text.replace(/\^\{([^}]+)\}/g, (_, content) =>
-//     content
-//       .split("")
-//       .map((c) => "^" + c)
-//       .join("")
-//   );
-
-//   // Subscripts in braces
-//   text = text.replace(/_\{([^}]+)\}/g, (_, content) =>
-//     content
-//       .split("")
-//       .map((c) => "_" + c)
-//       .join("")
-//   );
-
-//   // Apply subscript/superscript Unicode
-//   for (const [latex, unicode] of subsuperscripts) {
-//     const escapedLatex = latex.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-//     text = text.replace(new RegExp(escapedLatex, "g"), unicode);
-//   }
-
-//   // Combining marks
-//   for (const [latex, unicode] of combiningmarks) {
-//     const cmdName = latex.slice(1);
-//     const pattern = new RegExp(`\\\\${cmdName}\\{(.?)\\}`, "g");
-//     text = text.replace(pattern, (_, char) =>
-//       char ? char + unicode : unicode
-//     );
-//   }
-
-//   return text;
-// }
-
-// Enhanced LaTeX to Unicode converter using unicodeit
-// function convertLatexToUnicode(text: string): string {
-//   if (!text) return "";
-
-//   // Handle text formatting commands
-//   text = text
-//     .replace(/\\rm\{([^}]+)\}/g, "$1")
-//     .replace(/\\rm\s+/g, "")
-//     .replace(/\\text\{([^}]+)\}/g, "$1")
-//     .replace(/\\mathrm\{([^}]+)\}/g, "$1")
-//     .replace(/\\textbf\{([^}]+)\}/g, "$1")
-//     .replace(/\\mathbf\{([^}]+)\}/g, "$1")
-//     .replace(/\\textit\{([^}]+)\}/g, "$1")
-//     .replace(/\\mathit\{([^}]+)\}/g, "$1");
-
-//   // Handle spacing commands
-//   text = text
-//     .replace(/\\;/g, " ")
-//     .replace(/\\,/g, " ")
-//     .replace(/\\:/g, " ")
-//     .replace(/\\!/g, "")
-//     .replace(/\\quad/g, "  ")
-//     .replace(/\\qquad/g, "    ")
-//     .replace(/\\\s/g, " ");
-
-//   // Handle special characters
-//   text = text
-//     .replace(/\\%/g, "%")
-//     .replace(/\\#/g, "#")
-//     .replace(/\\$/g, "$")
-//     .replace(/\\&/g, "&")
-//     .replace(/\\_/g, "_")
-//     .replace(/\\\{/g, "{")
-//     .replace(/\\\}/g, "}");
-
-//   // Handle parentheses
-//   text = text
-//     .replace(/\\left\(/g, "(")
-//     .replace(/\\right\)/g, ")")
-//     .replace(/\\left\[/g, "[")
-//     .replace(/\\right\]/g, "]")
-//     .replace(/\\left\{/g, "{")
-//     .replace(/\\right\}/g, "}")
-//     .replace(/\\left\|/g, "|")
-//     .replace(/\\right\|/g, "|")
-//     .replace(/\\left\./g, "")
-//     .replace(/\\right\./g, "");
-
-//   // Handle square root
-//   text = text
-//     .replace(/\\sqrt\{([^}]+)\}/g, "√($1)")
-//     .replace(/\\sqrt\[(\d+)\]\{([^}]+)\}/g, "$1√($2)");
-
-//   // Handle generic fractions (after specific ones)
-//   text = text
-//     .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1/$2)")
-//     .replace(/\\dfrac\{([^}]+)\}\{([^}]+)\}/g, "($1/$2)")
-//     .replace(/\\tfrac\{([^}]+)\}\{([^}]+)\}/g, "($1/$2)");
-
-//   // Apply unicodeit replacements
-//   text = unicodeitReplace(text);
-
-//   // Handle trigonometric and other functions
-//   text = text
-//     .replace(/\\sin\b/g, "sin")
-//     .replace(/\\cos\b/g, "cos")
-//     .replace(/\\tan\b/g, "tan")
-//     .replace(/\\cot\b/g, "cot")
-//     .replace(/\\sec\b/g, "sec")
-//     .replace(/\\csc\b/g, "csc")
-//     .replace(/\\log\b/g, "log")
-//     .replace(/\\ln\b/g, "ln")
-//     .replace(/\\exp\b/g, "exp")
-//     .replace(/\\lim\b/g, "lim")
-//     .replace(/\\max\b/g, "max")
-//     .replace(/\\min\b/g, "min");
-
-//   // Clean up extra spaces
-//   text = text.replace(/\s+/g, " ").trim();
-
-//   return text;
-// }
-
-// Add this before convertLatexToUnicode
-
-function isBalancedBraces(text: string): boolean {
-  let count = 0;
-  for (const char of text) {
-    if (char === "{") count++;
-    if (char === "}") count--;
-    if (count < 0) return false;
-  }
-  return count === 0;
+  return text;
 }
 
-function extractBracedContent(
-  text: string,
-  start: number
-): { content: string; end: number } {
-  if (text[start] !== "{") return { content: "", end: start };
-
-  let braceCount = 1;
-  let end = start + 1;
-
-  while (braceCount > 0 && end < text.length) {
-    if (text[end] === "{") braceCount++;
-    if (text[end] === "}") braceCount--;
-    end++;
-  }
-
-  return {
-    content: text.slice(start + 1, end - 1),
-    end: end,
+// Convert string to superscript
+function convertToSuperscript(str: string): string {
+  const superMap: Record<string, string> = {
+    "0": "⁰",
+    "1": "¹",
+    "2": "²",
+    "3": "³",
+    "4": "⁴",
+    "5": "⁵",
+    "6": "⁶",
+    "7": "⁷",
+    "8": "⁸",
+    "9": "⁹",
+    "+": "⁺",
+    "-": "⁻",
+    "=": "⁼",
+    "(": "⁽",
+    ")": "⁾",
+    n: "ⁿ",
+    i: "ⁱ",
+    x: "ˣ",
+    y: "ʸ",
+    z: "ᶻ",
   };
+  return str
+    .split("")
+    .map((c) => superMap[c] || c)
+    .join("");
 }
 
-// function convertLatexToUnicode(text: string): string {
-//   if (!text) return "";
+// Convert string to subscript
+function convertToSubscript(str: string): string {
+  const subMap: Record<string, string> = {
+    "0": "₀",
+    "1": "₁",
+    "2": "₂",
+    "3": "₃",
+    "4": "₄",
+    "5": "₅",
+    "6": "₆",
+    "7": "₇",
+    "8": "₈",
+    "9": "₉",
+    "+": "₊",
+    "-": "₋",
+    "=": "₌",
+    "(": "₍",
+    ")": "₎",
+    x: "ₓ",
+    a: "ₐ",
+    e: "ₑ",
+    i: "ᵢ",
+    o: "ₒ",
+    n: "ₙ",
+    h: "ₕ",
+    k: "ₖ",
+    l: "ₗ",
+    m: "ₘ",
+    p: "ₚ",
+    s: "ₛ",
+    t: "ₜ",
+  };
+  return str
+    .split("")
+    .map((c) => subMap[c] || c)
+    .join("");
+}
 
-//   // Text formatting
-//   text = text
-//     .replace(/\\rm\{([^}]+)\}/g, "$1")
-//     .replace(/\\text\{([^}]+)\}/g, "$1")
-//     .replace(/\\mathrm\{([^}]+)\}/g, "$1")
-//     .replace(/\\textbf\{([^}]+)\}/g, "$1")
-//     .replace(/\\mathbf\{([^}]+)\}/g, "$1")
-//     .replace(/\\textit\{([^}]+)\}/g, "$1")
-//     .replace(/\\mathit\{([^}]+)\}/g, "$1");
+// Enhanced unicodeit replacement
+function unicodeitReplace(text: string): string {
+  if (!text || typeof text !== "string") {
+    return String(text || "");
+  }
 
-//   // Spacing
-//   text = text
-//     .replace(/\\[;,!:\s]/g, " ")
-//     .replace(/\\quad/g, "  ")
-//     .replace(/\\qquad/g, "    ");
+  // Handle \not prefix
+  text = text.replace(/\\not\\?([A-Za-z]+)/g, "$1\u0338");
 
-//   // Special characters
-//   text = text
-//     .replace(/\\%/g, "%")
-//     .replace(/\\#/g, "#")
-//     .replace(/\\$/g, "$")
-//     .replace(/\\&/g, "&")
-//     .replace(/\\_/g, "_")
-//     .replace(/\\\{/g, "{")
-//     .replace(/\\\}/g, "}");
+  // Apply main replacements (from your replacements file)
+  for (const [latex, unicode] of replacements) {
+    if (latex instanceof RegExp) {
+      text = text.replace(latex, unicode as string);
+    } else {
+      text = text.split(latex).join(unicode);
+    }
+  }
 
-//   // Parentheses
-//   text = text
-//     .replace(/\\left\(/g, "(")
-//     .replace(/\\right\)/g, ")")
-//     .replace(/\\left\[/g, "[")
-//     .replace(/\\right\]/g, "]")
-//     .replace(/\\left\{/g, "{")
-//     .replace(/\\right\}/g, "}")
-//     .replace(/\\left\|/g, "|")
-//     .replace(/\\right\|/g, "|")
-//     .replace(/\\left\./g, "")
-//     .replace(/\\right\./g, "");
+  // Expand superscripts in braces: ^{abc} -> ^a^b^c
+  text = text.replace(/\^\{([^{}]+)\}/g, (_, content) =>
+    content
+      .split("")
+      .map((c: string) => "^" + c)
+      .join("")
+  );
 
-//   // Fractions (specific first)
-//   text = text.replace(/\\d?frac\{([^}]+)\}\{([^}]+)\}/g, "($1/$2)");
+  // Expand subscripts in braces: _{abc} -> _a_b_c
+  text = text.replace(/_\{([^{}]+)\}/g, (_, content) =>
+    content
+      .split("")
+      .map((c: string) => "_" + c)
+      .join("")
+  );
 
-//   // Square roots
-//   text = text
-//     .replace(/\\sqrt\[(\d+)\]\{([^}]+)\}/g, "$1√($2)")
-//     .replace(/\\sqrt\{([^}]+)\}/g, "√($1)");
+  // Apply subscript/superscript replacements
+  for (const [latex, unicode] of subsuperscripts) {
+    text = text.split(latex).join(unicode);
+  }
 
-//   // Trig & functions
-//   text = text.replace(
-//     /\\(sin|cos|tan|cot|sec|csc|log|ln|exp|lim|max|min)\b/g,
-//     "$1"
-//   );
+  // Apply combining marks
+  for (const [latex, unicode] of combiningmarks) {
+    const cmdName = latex.slice(1);
+    const pattern = new RegExp(`\\\\${cmdName}\\{(.?)\\}`, "g");
+    text = text.replace(pattern, (_, char) =>
+      char ? char + unicode : unicode
+    );
+  }
 
-//   // Apply unicodeit replacements **after formatting but before final cleanup**
-//   text = unicodeitReplace(text);
+  return text;
+}
 
-//   // Cleanup extra spaces
-//   text = text.replace(/\s+/g, " ").trim();
-
-//   return text;
-// }
-
-// Decode HTML entities
-
-// function convertLatexToUnicode(text: string): string {
-//   if (!text) return "";
-
-//   // Pre-process special cases
-//   text = text
-//     // Handle spaces
-//     .replace(/\\,/g, " ")
-//     .replace(/\\;/g, "  ")
-//     .replace(/\\:/g, " ")
-//     .replace(/\\!/g, "")
-//     .replace(/\\quad/g, "    ")
-//     .replace(/\\qquad/g, "        ")
-
-//     // Handle fractions
-//     .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "$1⁄$2")
-
-//     // Handle powers and subscripts
-//     .replace(/\^(\{[^{}]+\}|\d)/g, (_, exp) => {
-//       exp = exp.replace(/[{}]/g, "");
-//       return exp
-//         .split("")
-//         .map((c) => {
-//           const superscript =
-//             {
-//               "0": "⁰",
-//               "1": "¹",
-//               "2": "²",
-//               "3": "³",
-//               "4": "⁴",
-//               "5": "⁵",
-//               "6": "⁶",
-//               "7": "⁷",
-//               "8": "⁸",
-//               "9": "⁹",
-//               "+": "⁺",
-//               "-": "⁻",
-//               "=": "⁼",
-//               "(": "⁽",
-//               ")": "⁾",
-//               n: "ⁿ",
-//             }[c] || c;
-//           return superscript;
-//         })
-//         .join("");
-//     })
-
-//     // Handle common math operators
-//     .replace(/\\sum\b/g, "∑")
-//     .replace(/\\prod\b/g, "∏")
-//     .replace(/\\int\b/g, "∫")
-//     .replace(/\\infty\b/g, "∞")
-//     .replace(/\\partial\b/g, "∂");
-
-//   // Apply unicodeit replacements
-
-//   // In convertLatexToUnicode, before calling unicodeitReplace:
-//   text = replaceFractions(text);
-//   text = unicodeitReplace(text);
-
-//   // Post-process cleanup
-//   text = text
-//     .replace(/\\\s/g, " ")
-//     .replace(/\\textbf\{([^}]+)\}/g, "$1")
-//     .replace(/\\text\{([^}]+)\}/g, "$1")
-//     .replace(/\\mathrm\{([^}]+)\}/g, "$1")
-//     .replace(/\s+/g, " ")
-//     .trim();
-
-//   return text;
-// }
-
-//
-
-// function convertLatexToUnicode(text: string): string {
-//   if (!text) return "";
-
-//   // Pre-process special cases
-//   text = text
-//     // Handle spaces
-//     .replace(/\\,/g, " ")
-//     .replace(/\\;/g, "  ")
-//     .replace(/\\:/g, " ")
-//     .replace(/\\!/g, "")
-//     .replace(/\\quad/g, "    ")
-//     .replace(/\\qquad/g, "        ")
-
-//     // Handle fractions
-//     .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "$1⁄$2")
-
-//     // Handle powers (improved to handle complex expressions)
-//     .replace(/\^(\{[^{}]*\}|[^{}\s])/g, (_, exp) => {
-//       // Remove braces if present
-//       exp = exp.replace(/[{}]/g, "");
-//       // Handle each character in the exponent
-//       return exp
-//         .split("")
-//         .map((c) => {
-//           const superscript =
-//             {
-//               "0": "⁰",
-//               "1": "¹",
-//               "2": "²",
-//               "3": "³",
-//               "4": "⁴",
-//               "5": "⁵",
-//               "6": "⁶",
-//               "7": "⁷",
-//               "8": "⁸",
-//               "9": "⁹",
-//               "+": "⁺",
-//               "-": "⁻",
-//               "=": "⁼",
-//               "(": "⁽",
-//               ")": "⁾",
-//               n: "ⁿ",
-//               i: "ⁱ",
-//               x: "ˣ",
-//               y: "ʸ",
-//               z: "ᶻ",
-//               a: "ᵃ",
-//               b: "ᵇ",
-//               c: "ᶜ",
-//               d: "ᵈ",
-//               e: "ᵉ",
-//               f: "ᶠ",
-//               g: "ᵍ",
-//               h: "ʰ",
-//               j: "ʲ",
-//               k: "ᵏ",
-//               l: "ˡ",
-//               m: "ᵐ",
-//               o: "ᵒ",
-//               p: "ᵖ",
-//               r: "ʳ",
-//               s: "ˢ",
-//               t: "ᵗ",
-//               u: "ᵘ",
-//               v: "ᵛ",
-//               w: "ʷ",
-//               // Add more letters or symbols as needed
-//             }[c] || c; // Fallback to original character if no mapping
-//           return superscript;
-//         })
-//         .join("");
-//     })
-
-//     // Handle subscripts
-//     .replace(/_(\{[^{}]*\}|[^{}\s])/g, (_, sub) => {
-//       sub = sub.replace(/[{}]/g, "");
-//       return sub
-//         .split("")
-//         .map((c) => {
-//           const subscript =
-//             {
-//               "0": "₀",
-//               "1": "₁",
-//               "2": "₂",
-//               "3": "₃",
-//               "4": "₄",
-//               "5": "₅",
-//               "6": "₆",
-//               "7": "₇",
-//               "8": "₈",
-//               "9": "₉",
-//               "+": "₊",
-//               "-": "₋",
-//               "=": "₌",
-//               "(": "₍",
-//               ")": "₎",
-//               x: "ₓ",
-//               v: "ᵥ",
-//               u: "ᵤ",
-//               t: "ₜ",
-//               s: "ₛ",
-//               r: "ᵣ",
-//               p: "ₚ",
-//               o: "ₒ",
-//               n: "ₙ",
-//               m: "ₘ",
-//               l: "ₗ",
-//               k: "ₖ",
-//               j: "ⱼ",
-//               i: "ᵢ",
-//               h: "ₕ",
-//               e: "ₑ",
-//               a: "ₐ",
-//               ρ: "ᵨ",
-//               χ: "ᵪ",
-//               φ: "ᵩ",
-//               β: "ᵦ",
-//               γ: "ᵧ",
-//             }[c] || c;
-//           return subscript;
-//         })
-//         .join("");
-//     })
-
-//     // Handle common math operators
-//     .replace(/\\sum\b/g, "∑")
-//     .replace(/\\prod\b/g, "∏")
-//     .replace(/\\int\b/g, "∫")
-//     .replace(/\\infty\b/g, "∞")
-//     .replace(/\\partial\b/g, "∂");
-
-//   // Apply unicodeit replacements
-//   text = unicodeitReplace(text);
-
-//   // Post-process cleanup
-//   text = text
-//     .replace(/\\\s/g, " ")
-//     .replace(/\\textbf\{([^}]+)\}/g, "$1")
-//     .replace(/\\text\{([^}]+)\}/g, "$1")
-//     .replace(/\\mathrm\{([^}]+)\}/g, "$1")
-//     .replace(/\s+/g, " ")
-//     .trim();
-
-//   return text;
-// }
-
+// Main conversion function - PROPER ORDER IS CRITICAL
 function convertLatexToUnicode(text: string): string {
   if (!text) return "";
 
-  // Pre-process special cases
+  // STEP 1: Clean up text formatting commands FIRST
   text = text
-    // Handle spaces
+    .replace(/\\text(bf|it|rm|sf|tt)?\{([^{}]+)\}/g, "$2")
+    .replace(/\\math(bf|it|rm|cal|bb|frak|sf)?\{([^{}]+)\}/g, "$2");
+
+  // STEP 2: Handle spacing commands
+  text = text
     .replace(/\\,/g, " ")
     .replace(/\\;/g, "  ")
     .replace(/\\:/g, " ")
     .replace(/\\!/g, "")
     .replace(/\\quad/g, "    ")
-    .replace(/\\qquad/g, "        ");
+    .replace(/\\qquad/g, "        ")
+    .replace(/\\ /g, " ");
 
-  // Handle recursive fractions
+  // STEP 3: Handle parentheses/brackets BEFORE other processing
+  text = text
+    .replace(/\\left\[/g, "[")
+    .replace(/\\right\]/g, "]")
+    .replace(/\\left\(/g, "(")
+    .replace(/\\right\)/g, ")")
+    .replace(/\\left\\?\{/g, "{")
+    .replace(/\\right\\?\}/g, "}")
+    .replace(/\\left\|/g, "|")
+    .replace(/\\right\|/g, "|")
+    .replace(/\\left\./g, "")
+    .replace(/\\right\./g, "");
+
+  // STEP 4: Process fractions FIRST (before other commands)
   text = replaceFractions(text);
 
-  // Handle powers/superscripts recursively
-  function replaceSuperscripts(text: string): string {
-    return text.replace(/\^(\{[^{}]*\}|[^{}\s])/g, (_, exp) => {
-      exp = exp.replace(/[{}]/g, "");
-      // Recurse for nesting
-      exp = replaceSuperscripts(exp);
-      return exp
-        .split("")
-        .map((c) => {
-          const superscript =
-            {
-              "0": "⁰",
-              "1": "¹",
-              "2": "²",
-              "3": "³",
-              "4": "⁴",
-              "5": "⁵",
-              "6": "⁶",
-              "7": "⁷",
-              "8": "⁸",
-              "9": "⁹",
-              "+": "⁺",
-              "-": "⁻",
-              "=": "⁼",
-              "(": "⁽",
-              ")": "⁾",
-              n: "ⁿ",
-              i: "ⁱ",
-              x: "ˣ",
-              y: "ʸ",
-              z: "ᶻ",
-              a: "ᵃ",
-              b: "ᵇ",
-              c: "ᶜ",
-              d: "ᵈ",
-              e: "ᵉ",
-              f: "ᶠ",
-              g: "ᵍ",
-              h: "ʰ",
-              j: "ʲ",
-              k: "ᵏ",
-              l: "ˡ",
-              m: "ᵐ",
-              o: "ᵒ",
-              p: "ᵖ",
-              r: "ʳ",
-              s: "ˢ",
-              t: "ᵗ",
-              u: "ᵘ",
-              v: "ᵛ",
-              w: "ʷ",
-            }[c] || c; // Fallback to original
-        })
-        .join("");
-    });
-  }
-  text = replaceSuperscripts(text);
+  // STEP 5: Process square roots
+  text = replaceSqrt(text);
 
-  // Handle subscripts recursively
-  function replaceSubscripts(text: string): string {
-    return text.replace(/_(\{[^{}]*\}|[^{}\s])/g, (_, sub) => {
-      sub = sub.replace(/[{}]/g, "");
-      // Recurse for nesting
-      sub = replaceSubscripts(sub);
-      return sub
-        .split("")
-        .map((c) => {
-          const subscript =
-            {
-              "0": "₀",
-              "1": "₁",
-              "2": "₂",
-              "3": "₃",
-              "4": "₄",
-              "5": "₅",
-              "6": "₆",
-              "7": "₇",
-              "8": "₈",
-              "9": "₉",
-              "+": "₊",
-              "-": "₋",
-              "=": "₌",
-              "(": "₍",
-              ")": "₎",
-              x: "ₓ",
-              v: "ᵥ",
-              u: "ᵤ",
-              t: "ₜ",
-              s: "ₛ",
-              r: "ᵣ",
-              p: "ₚ",
-              o: "ₒ",
-              n: "ₙ",
-              m: "ₘ",
-              l: "ₗ",
-              k: "ₖ",
-              j: "ⱼ",
-              i: "ᵢ",
-              h: "ₕ",
-              e: "ₑ",
-              a: "ₐ",
-              ρ: "ᵨ",
-              χ: "ᵪ",
-              φ: "ᵩ",
-              β: "ᵦ",
-              γ: "ᵧ",
-            }[c] || c; // Fallback to original
-        })
-        .join("");
-    });
-  }
-  text = replaceSubscripts(text);
-
-  // Handle common math operators
+  // STEP 6: Handle common math functions
   text = text
+    .replace(/\\(sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan)\b/g, "$1")
+    .replace(/\\(log|ln|exp|det|dim|ker|lim|max|min|sup|inf)\b/g, "$1");
+
+  // STEP 7: Handle common operators and symbols
+  text = text
+    .replace(/\\times\b/g, "×")
+    .replace(/\\div\b/g, "÷")
+    .replace(/\\pm\b/g, "±")
+    .replace(/\\mp\b/g, "∓")
+    .replace(/\\cdot\b/g, "⋅")
+    .replace(/\\ast\b/g, "∗")
+    .replace(/\\star\b/g, "⋆")
     .replace(/\\sum\b/g, "∑")
     .replace(/\\prod\b/g, "∏")
     .replace(/\\int\b/g, "∫")
     .replace(/\\infty\b/g, "∞")
-    .replace(/\\partial\b/g, "∂");
+    .replace(/\\partial\b/g, "∂")
+    .replace(/\\nabla\b/g, "∇")
+    .replace(/\\Delta\b/g, "Δ")
+    .replace(/\\delta\b/g, "δ")
+    .replace(/\\alpha\b/g, "α")
+    .replace(/\\beta\b/g, "β")
+    .replace(/\\gamma\b/g, "γ")
+    .replace(/\\Gamma\b/g, "Γ")
+    .replace(/\\theta\b/g, "θ")
+    .replace(/\\Theta\b/g, "Θ")
+    .replace(/\\lambda\b/g, "λ")
+    .replace(/\\Lambda\b/g, "Λ")
+    .replace(/\\mu\b/g, "μ")
+    .replace(/\\pi\b/g, "π")
+    .replace(/\\Pi\b/g, "Π")
+    .replace(/\\sigma\b/g, "σ")
+    .replace(/\\Sigma\b/g, "Σ")
+    .replace(/\\tau\b/g, "τ")
+    .replace(/\\phi\b/g, "φ")
+    .replace(/\\Phi\b/g, "Φ")
+    .replace(/\\omega\b/g, "ω")
+    .replace(/\\Omega\b/g, "Ω")
+    .replace(/\\epsilon\b/g, "ε")
+    .replace(/\\varepsilon\b/g, "ε")
+    .replace(/\\rho\b/g, "ρ")
+    .replace(/\\chi\b/g, "χ");
 
-  // Apply unicodeit replacements
+  // STEP 8: Handle relations
+  text = text
+    .replace(/\\leq\b|\\le\b/g, "≤")
+    .replace(/\\geq\b|\\ge\b/g, "≥")
+    .replace(/\\neq\b|\\ne\b/g, "≠")
+    .replace(/\\approx\b/g, "≈")
+    .replace(/\\equiv\b/g, "≡")
+    .replace(/\\sim\b/g, "∼")
+    .replace(/\\propto\b/g, "∝")
+    .replace(/\\rightarrow\b|\\to\b/g, "→")
+    .replace(/\\leftarrow\b/g, "←")
+    .replace(/\\leftrightarrow\b/g, "↔")
+    .replace(/\\Rightarrow\b/g, "⇒")
+    .replace(/\\Leftarrow\b/g, "⇐")
+    .replace(/\\Leftrightarrow\b/g, "⇔");
+
+  // STEP 9: Handle sets and logic
+  text = text
+    .replace(/\\in\b/g, "∈")
+    .replace(/\\notin\b/g, "∉")
+    .replace(/\\subset\b/g, "⊂")
+    .replace(/\\supset\b/g, "⊃")
+    .replace(/\\subseteq\b/g, "⊆")
+    .replace(/\\supseteq\b/g, "⊇")
+    .replace(/\\cup\b/g, "∪")
+    .replace(/\\cap\b/g, "∩")
+    .replace(/\\emptyset\b/g, "∅")
+    .replace(/\\forall\b/g, "∀")
+    .replace(/\\exists\b/g, "∃")
+    .replace(/\\neg\b|\\lnot\b/g, "¬")
+    .replace(/\\land\b|\\wedge\b/g, "∧")
+    .replace(/\\lor\b|\\vee\b/g, "∨");
+
+  // STEP 10: Apply unicodeit replacements (handles subscripts/superscripts)
   text = unicodeitReplace(text);
 
-  // Post-process cleanup
+  // STEP 11: Clean up remaining braces and backslashes
   text = text
-    .replace(/\\\s/g, " ")
-    .replace(/\\textbf\{([^}]+)\}/g, "$1")
-    .replace(/\\text\{([^}]+)\}/g, "$1")
-    .replace(/\\mathrm\{([^}]+)\}/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/\\?\{/g, "")
+    .replace(/\\?\}/g, "")
+    .replace(/\\\\/g, "\\")
+    .replace(/\\([^a-zA-Z])/g, "$1");
 
-  // Normalize minus signs and superscript exponents in dimensional formulas like [ML2T-2]
-  text = text.replace(/−/g, "-"); // Normalize en dash/minus to hyphen
-  text = text.replace(/\[([^\]]+)\]/g, (match, content) => {
-    // Remove spaces for consistency
+  // STEP 12: Handle dimensional formulas like [ML²T⁻²]
+  text = text.replace(/\[([A-Z][^\]]*)\]/g, (match, content) => {
     content = content.replace(/\s/g, "");
-    // Superscript exponents (e.g., L2 → L², T-2 → T⁻², K+1 → K⁺¹)
     content = content.replace(
       /([A-Z])([-+])?(\d+)/g,
       (_, letter, sign, num) => {
-        let superSign = "";
-        if (sign === "-") {
-          superSign = "⁻";
-        } else if (sign === "+") {
-          superSign = "⁺";
-        }
-        // Superscript digits (handles multi-digit like -10)
-        const superNum = num
-          .split("")
-          .map(
-            (d) =>
-              ({
-                "0": "⁰",
-                "1": "¹",
-                "2": "²",
-                "3": "³",
-                "4": "⁴",
-                "5": "⁵",
-                "6": "⁶",
-                "7": "⁷",
-                "8": "⁸",
-                "9": "⁹",
-              }[d])
-          )
-          .join("");
-        return letter + superSign + superNum;
+        let result = letter;
+        if (sign === "-") result += "⁻";
+        else if (sign === "+") result += "⁺";
+        result += convertToSuperscript(num);
+        return result;
       }
     );
     return "[" + content + "]";
   });
 
+  // STEP 13: Final cleanup
+  text = text.replace(/\s+/g, " ").trim();
+
   return text;
 }
 
+// Render LaTeX math with proper delimiter handling
+function renderLatexMath(text: string): string {
+  if (!text) return "";
+
+  try {
+    // Save escaped delimiters
+    text = text
+      .replace(/\\\$/g, "___DOLLAR___")
+      .replace(/\\\[/g, "___LBRACK___")
+      .replace(/\\\]/g, "___RBRACK___")
+      .replace(/\\\(/g, "___LPAREN___")
+      .replace(/\\\)/g, "___RPAREN___");
+
+    // Process display math \[...\]
+    text = text.replace(/\\\[([\s\S]*?)\\\]/g, (_, latex) =>
+      convertLatexToUnicode(latex.trim())
+    );
+
+    // Process inline math \(...\)
+    text = text.replace(/\\\(([\s\S]*?)\\\)/g, (_, latex) =>
+      convertLatexToUnicode(latex.trim())
+    );
+
+    // Process display math $$...$$
+    text = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, latex) =>
+      convertLatexToUnicode(latex.trim())
+    );
+
+    // Process inline math $...$
+    text = text.replace(/(?<!\$)\$(?!\$)([^\$\n]+?)\$(?!\$)/g, (_, latex) =>
+      convertLatexToUnicode(latex.trim())
+    );
+
+    // Restore escaped delimiters
+    text = text
+      .replace(/___DOLLAR___/g, "$")
+      .replace(/___LBRACK___/g, "[")
+      .replace(/___RBRACK___/g, "]")
+      .replace(/___LPAREN___/g, "(")
+      .replace(/___RPAREN___/g, ")");
+
+    // Fallback: convert any remaining LaTeX
+    if (/\\[a-zA-Z]+/.test(text)) {
+      text = convertLatexToUnicode(text);
+    }
+
+    return text;
+  } catch (error) {
+    console.error("Error rendering LaTeX:", error);
+    return text;
+  }
+}
+
+// Decode HTML entities
 function decodeHtmlEntities(content: string): string {
   if (!content) return "";
 
@@ -879,277 +511,22 @@ function decodeHtmlEntities(content: string): string {
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, " ")
-    .replace(/&aacute;/g, "á")
-    .replace(/&Aacute;/g, "Á")
-    .replace(/&eacute;/g, "é")
-    .replace(/&Eacute;/g, "É")
-    .replace(/&iacute;/g, "í")
-    .replace(/&Iacute;/g, "Í")
-    .replace(/&oacute;/g, "ó")
-    .replace(/&Oacute;/g, "Ó")
-    .replace(/&uacute;/g, "ú")
-    .replace(/&Uacute;/g, "Ú")
-    .replace(/&ntilde;/g, "ñ")
-    .replace(/&Ntilde;/g, "Ñ")
-    .replace(/&#(\d+);/g, (match, code) => {
-      try {
-        const charCode = parseInt(code, 10);
-        if (charCode > 0 && charCode < 1114112) {
-          return String.fromCharCode(charCode);
-        }
-        return "";
-      } catch {
-        return "";
-      }
+    .replace(/&#(\d+);/g, (_, code) => {
+      const charCode = parseInt(code, 10);
+      return charCode > 0 && charCode < 1114112
+        ? String.fromCharCode(charCode)
+        : "";
     })
-    .replace(/&#x([a-fA-F0-9]+);/g, (match, code) => {
-      try {
-        const charCode = parseInt(code, 16);
-        if (charCode > 0 && charCode < 1114112) {
-          return String.fromCharCode(charCode);
-        }
-        return "";
-      } catch {
-        return "";
-      }
+    .replace(/&#x([a-fA-F0-9]+);/g, (_, code) => {
+      const charCode = parseInt(code, 16);
+      return charCode > 0 && charCode < 1114112
+        ? String.fromCharCode(charCode)
+        : "";
     })
     .replace(/&amp;/g, "&");
 }
 
-// // Render LaTeX math to Unicode
-
-// function renderLatexMath(text: string): string {
-//   if (!text) return "";
-
-//   try {
-//     // Handle display math \[ ... \]
-//     text = text.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
-//       return convertLatexToUnicode(latex.trim());
-//     });
-
-//     // Handle inline math \( ... \)
-//     text = text.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
-//       return convertLatexToUnicode(latex.trim());
-//     });
-
-//     // Handle display $$ ... $$
-//     text = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
-//       return convertLatexToUnicode(latex.trim());
-//     });
-
-//     // Handle inline $ ... $
-//     text = text.replace(/\$([^\$\n]+?)\$/g, (match, latex) => {
-//       return convertLatexToUnicode(latex.trim());
-//     });
-
-//     return text;
-//   } catch (error) {
-//     console.error("Error rendering LaTeX:", error);
-//     return text;
-//   }
-// }
-
-// function renderLatexMath(text: string): string {
-//   if (!text) return "";
-
-//   try {
-//     // Fix double-escaped backslashes that might come from HTML
-//     text = text.replace(/\\\\\\\\/g, "\\\\"); // \\\\ -> \\
-//     text = text.replace(/\\\\\(/g, "\\(");
-//     text = text.replace(/\\\\\)/g, "\\)");
-//     text = text.replace(/\\\\\[/g, "\\[");
-//     text = text.replace(/\\\\\]/g, "\\]");
-
-//     // Handle display math \[ ... \]
-//     text = text.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
-//       const converted = convertLatexToUnicode(latex.trim());
-//       console.log("Display math:", latex.trim(), "->", converted);
-//       return converted;
-//     });
-
-//     // Handle inline math \( ... \)
-//     text = text.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
-//       const converted = convertLatexToUnicode(latex.trim());
-//       console.log("Inline math:", latex.trim(), "->", converted);
-//       return converted;
-//     });
-
-//     // Handle display $ ... $ (must come before single $)
-//     text = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
-//       const converted = convertLatexToUnicode(latex.trim());
-//       console.log("Display $:", latex.trim(), "->", converted);
-//       return converted;
-//     });
-
-//     // Handle inline $ ... $ (improved regex to avoid matching $)
-//     // Use negative lookbehind and lookahead to avoid matching $
-//     text = text.replace(
-//       /(?<!\$)\$(?!\$)([^\$\n]+?)\$(?!\$)/g,
-//       (match, latex) => {
-//         const converted = convertLatexToUnicode(latex.trim());
-//         console.log("Inline $:", latex.trim(), "->", converted);
-//         return converted;
-//       }
-//     );
-
-//     // FALLBACK: If text still contains LaTeX commands (backslash followed by letters)
-//     // and no math delimiters were found, try direct conversion
-//     if (/\\[a-zA-Z]+/.test(text)) {
-//       console.log("Fallback: Converting raw LaTeX");
-//       text = convertLatexToUnicode(text);
-//     }
-
-//     return text;
-//   } catch (error) {
-//     console.error("Error rendering LaTeX:", error);
-//     return text;
-//   }
-// }
-
 // Check if content contains images
-
-// function renderLatexMath(text: string): string {
-//   if (!text) return "";
-
-//   try {
-//     // Fix double-escaped backslashes from HTML
-//     text = text
-//       .replace(/\\\\\\\\/g, "\\\\")
-//       .replace(/\\\\\(/g, "\\(")
-//       .replace(/\\\\\)/g, "\\)")
-//       .replace(/\\\\\[/g, "\\[")
-//       .replace(/\\\\\]/g, "\\]");
-
-//     // Display math \[...\]
-//     text = text.replace(/\\\[([\s\S]*?)\\\]/g, (_, latex) =>
-//       convertLatexToUnicode(latex.trim())
-//     );
-
-//     // Inline math \(...\)
-//     text = text.replace(/\\\(([\s\S]*?)\\\)/g, (_, latex) =>
-//       convertLatexToUnicode(latex.trim())
-//     );
-
-//     // Display $$...$$
-//     text = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, latex) =>
-//       convertLatexToUnicode(latex.trim())
-//     );
-
-//     // Inline $...$
-//     text = text.replace(/(?<!\$)\$(?!\$)([^\$\n]+?)\$(?!\$)/g, (_, latex) =>
-//       convertLatexToUnicode(latex.trim())
-//     );
-
-//     // Fallback: convert any remaining LaTeX
-//     if (/\\[a-zA-Z]+/.test(text)) {
-//       text = convertLatexToUnicode(text);
-//     }
-
-//     return text;
-//   } catch (error) {
-//     console.error("Error rendering LaTeX:", error);
-//     return text;
-//   }
-// }
-
-// function renderLatexMath(text: string): string {
-//   if (!text) return "";
-
-//   try {
-//     // First unescape any escaped LaTeX delimiters
-//     text = text
-//       .replace(/\\\$/g, "___DOLLAR___") // Save escaped dollars
-//       .replace(/\\\[/g, "___LBRACK___") // Save escaped brackets
-//       .replace(/\\\]/g, "___RBRACK___");
-
-//     // Handle display math environments
-//     const delimiters = [
-//       { start: "\\[", end: "\\]" },
-//       { start: "\\(", end: "\\)" },
-//       { start: "$$", end: "$$" },
-//       { start: "$", end: "$" },
-//     ];
-
-//     for (const { start, end } of delimiters) {
-//       text = text
-//         .split(start)
-//         .map((part, i) => {
-//           if (i === 0) return part;
-//           const [math, ...rest] = part.split(end);
-//           return convertLatexToUnicode(math.trim()) + rest.join(end);
-//         })
-//         .join("");
-//     }
-
-//     // Restore escaped delimiters
-//     text = text
-//       .replace(/___DOLLAR___/g, "$")
-//       .replace(/___LBRACK___/g, "[")
-//       .replace(/___RBRACK___/g, "]");
-
-//     return text;
-//   } catch (error) {
-//     console.error("Error rendering LaTeX:", error);
-//     return text;
-//   }
-// }
-
-function renderLatexMath(text: string): string {
-  if (!text) return "";
-
-  try {
-    // First unescape any escaped LaTeX delimiters
-    text = text
-      .replace(/\\\$/g, "___DOLLAR___") // Save escaped dollars
-      .replace(/\\\[/g, "___LBRACK___") // Save escaped brackets
-      .replace(/\\\]/g, "___RBRACK___");
-
-    // Handle display math environments
-    const delimiters = [
-      { start: "\\[", end: "\\]" },
-      { start: "\\(", end: "\\)" },
-      { start: "$$", end: "$$" },
-      { start: "$", end: "$" },
-    ];
-
-    for (const { start, end } of delimiters) {
-      text = text
-        .split(start)
-        .map((part, i) => {
-          if (i === 0) return part;
-          const [math, ...rest] = part.split(end);
-          return convertLatexToUnicode(math.trim()) + rest.join(end);
-        })
-        .join("");
-    }
-
-    // Restore escaped delimiters
-    text = text
-      .replace(/___DOLLAR___/g, "$")
-      .replace(/___LBRACK___/g, "[")
-      .replace(/___RBRACK___/g, "]");
-
-    // *** NEW: Fallback for raw LaTeX without delimiters ***
-    // Detect if there are still LaTeX commands like \frac, \alpha, etc.
-    if (/\\[a-zA-Z]+/.test(text)) {
-      text = convertLatexToUnicode(text);
-    }
-
-    return text;
-  } catch (error) {
-    console.error("Error rendering LaTeX:", error);
-    return text;
-  }
-}
-
-function replaceFractions(text: string): string {
-  const fractionRegex = /\\frac\{([\s\S]*?)\}\{([\s\S]*?)\}/g;
-  return text.replace(fractionRegex, (match, num, den) => {
-    // Recurse on numerator and denominator
-    return `${replaceFractions(num)}∕${replaceFractions(den)}`;
-  });
-}
-
 function containsImage(content: string): boolean {
   if (!content) return false;
   return (
@@ -1188,72 +565,67 @@ function processBilingualText(content: string): {
   let text = root.textContent || "";
   text = text.replace(/\s+/g, " ").trim();
   text = text.replace(/\[English Solution\]/gi, "").trim();
-  text = renderLatexMath(text);
 
-  // Check for <br/>[Hindi] or <br>[Hindi] format
+  // CRITICAL FIX: Split BEFORE LaTeX processing to preserve delimiters
+  let englishPart = "";
+  let hindiPart = "";
+
+  // Check for <br/>[Hindi] format
   const brHindiMatch = text.match(/^(.*?)<br\/?>\s*\[Hindi\]\s*(.*)$/s);
   if (brHindiMatch) {
-    return {
-      english: brHindiMatch[1].trim(),
-      hindi: brHindiMatch[2].trim(),
-    };
+    englishPart = brHindiMatch[1].trim();
+    hindiPart = brHindiMatch[2].trim();
   }
-
   // Check for standalone [Hindi] marker
-  const standaloneHindiMatch = text.match(/^(.*?)\[Hindi\]\s*(.*)$/s);
-  if (standaloneHindiMatch && text.includes("[Hindi]")) {
-    const beforeHindi = standaloneHindiMatch[1].trim();
-    let afterHindi = standaloneHindiMatch[2]
-      .replace(/^\[Hindi\]\s*/, "")
-      .trim();
-    afterHindi = afterHindi.replace(/\[Hindi\]/g, "").trim();
-    return {
-      english: beforeHindi,
-      hindi: afterHindi,
-    };
+  else {
+    const standaloneHindiMatch = text.match(/^(.*?)\[Hindi\]\s*(.*)$/s);
+    if (standaloneHindiMatch && text.includes("[Hindi]")) {
+      englishPart = standaloneHindiMatch[1].trim();
+      hindiPart = standaloneHindiMatch[2]
+        .replace(/^\[Hindi\]\s*/, "")
+        .replace(/\[Hindi\]/g, "")
+        .trim();
+    }
+    // Check for " / " separator
+    else {
+      const slashMatch = text.match(/^(.*?)\s+\/\s+(.*)$/s);
+      if (slashMatch) {
+        englishPart = slashMatch[1].trim();
+        hindiPart = slashMatch[2].trim();
+      }
+      // Check for [Hindi Solution] marker
+      else {
+        const hindiSolutionMatch = text.match(
+          /^(.*?)\[Hindi Solution\]\s*(.*)$/is
+        );
+        if (hindiSolutionMatch) {
+          englishPart = hindiSolutionMatch[1].trim();
+          hindiPart = hindiSolutionMatch[2].trim();
+        }
+        // Detect Devanagari script
+        else {
+          const hindiRegex = /[\u0900-\u097F]+/g;
+          const hindiMatches = text.match(hindiRegex);
+          if (hindiMatches) {
+            hindiPart = hindiMatches.join(" ").trim();
+            englishPart = text.replace(hindiRegex, "").trim();
+          } else {
+            // No Hindi found, everything is English
+            englishPart = text;
+          }
+        }
+      }
+    }
   }
 
-  // Check for " / " separator
-  const slashMatch = text.match(/^(.*?)\s+\/\s+(.*)$/s);
-  if (slashMatch) {
-    return {
-      english: slashMatch[1].trim(),
-      hindi: slashMatch[2].trim(),
-    };
-  }
+  // NOW apply LaTeX rendering to BOTH parts separately
+  englishPart = renderLatexMath(englishPart);
+  hindiPart = renderLatexMath(hindiPart);
 
-  // Check for [Hindi Solution] marker
-  const hindiSolutionMatch1 = text.match(/^(.*?)\[Hindi Solution\]\s*(.*)$/is);
-  if (hindiSolutionMatch1) {
-    return {
-      english: hindiSolutionMatch1[1].trim(),
-      hindi: hindiSolutionMatch1[2].trim(),
-    };
-  }
-
-  const hindiSolutionMatch = text.match(
-    /^(.*?)---\s*\[Hindi Solution\]\s*(.*)$/is
-  );
-  if (hindiSolutionMatch) {
-    return {
-      english: hindiSolutionMatch[1].trim(),
-      hindi: hindiSolutionMatch[2].trim(),
-    };
-  }
-
-  // Detect Devanagari script
-  const hindiRegex = /[\u0900-\u097F]+/g;
-  const hindiMatches = text.match(hindiRegex);
-  if (hindiMatches) {
-    const hindiPart = hindiMatches.join(" ").trim();
-    const englishPart = text.replace(hindiRegex, "").trim();
-    return {
-      english: englishPart,
-      hindi: hindiPart,
-    };
-  }
-
-  return { english: text, hindi: "" };
+  return {
+    english: englishPart,
+    hindi: hindiPart,
+  };
 }
 
 // Create Word document
